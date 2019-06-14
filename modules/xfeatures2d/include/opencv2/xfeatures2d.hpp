@@ -985,10 +985,15 @@ CV_EXPORTS void FASTForPointSet( InputArray image, CV_IN_OUT std::vector<KeyPoin
         If matching results are not satisfying, please add more features. (We use 10000 for images with 640 X 480).
         If your images have big rotation and scale changes, please set withRotation or withScale to true.
  */
+CV_EXPORTS_W void matchGMS(const Size& size1, const Size& size2, const std::vector<KeyPoint>& keypoints1, const std::vector<KeyPoint>& keypoints2,
+                           const std::vector<DMatch>& matches1to2, CV_OUT std::vector<DMatch>& matchesGMS, const bool withRotation = false,
+                           const bool withScale = false, const double thresholdFactor = 6.0);
 
-CV_EXPORTS_W void matchGMS( const Size& size1, const Size& size2, const std::vector<KeyPoint>& keypoints1, const std::vector<KeyPoint>& keypoints2,
-                          const std::vector<DMatch>& matches1to2, CV_OUT std::vector<DMatch>& matchesGMS, const bool withRotation = false,
-                          const bool withScale = false, const double thresholdFactor = 6.0 );
+//TODO: doc
+CV_EXPORTS_W void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
+                            const std::vector<KeyPoint>& keypoints2, const Mat& descriptors2,
+                            const Ptr<DescriptorMatcher>& matcher,
+                            std::vector<DMatch>& matches1to2GLPM, float LoweRatio=0.7f);
 
 //! @}
 
