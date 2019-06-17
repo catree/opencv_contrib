@@ -5,6 +5,9 @@
 
 #include "precomp.hpp"
 #include <map>
+//TODO: debug
+#include <iostream>
+#define KD_TREE 1
 
 namespace cv
 {
@@ -24,6 +27,7 @@ struct nnInfo {
 
 static void nearestNeighbor(const std::vector<KeyPoint>& keypoints, int K, std::vector<std::vector<int> >& neighbors)
 {
+#if !KD_TREE
     Mat distance(static_cast<int>(keypoints.size()), static_cast<int>(keypoints.size()), CV_32FC1);
 
     neighbors.resize(keypoints.size());
@@ -56,8 +60,31 @@ static void nearestNeighbor(const std::vector<KeyPoint>& keypoints, int K, std::
         }
         neighbors[i] = neigh;
     }
+#else
+    neighbors.resize(keypoints.size());
+
+    std::vector<Point2f> keypoints_pts;
+    KeyPoint::convert(keypoints, keypoints_pts);
+
+    flann::KDTreeIndexParams indexParams;
+    Mat input = Mat(keypoints_pts).reshape(1);
+    flann::Index kdtree(input, indexParams);
+
+    std::vector<float> query;
+    std::vector<int> indices;
+    std::vector<float> dists;
+    query.resize(2);
+    for (size_t i = 0; i < keypoints_pts.size(); i++) {
+        query[0] = keypoints_pts[i].x;
+        query[1] = keypoints_pts[i].y;
+
+        kdtree.knnSearch(query, indices, dists, K);
+        neighbors[i] = indices;
+    }
+#endif
 }
 
+#if !KD_TREE
 static void nearestNeighbor(const std::vector<KeyPoint>& keypoints1, const std::vector<KeyPoint>& keypoints2,
                             int K, std::vector<std::vector<int> >& neighbors)
 {
@@ -87,6 +114,35 @@ static void nearestNeighbor(const std::vector<KeyPoint>& keypoints1, const std::
         neighbors[i] = neigh;
     }
 }
+#else
+static void nearestNeighbor(const std::vector<KeyPoint>& keypoints1, const std::vector<KeyPoint>& keypoints2,
+                            int K, std::vector<std::vector<int> >& neighbors)
+{
+    neighbors.resize(keypoints1.size());
+
+    std::vector<Point2f> keypoints1_pts;
+    KeyPoint::convert(keypoints1, keypoints1_pts);
+
+    std::vector<Point2f> keypoints2_pts;
+    KeyPoint::convert(keypoints2, keypoints2_pts);
+
+    flann::KDTreeIndexParams indexParams;
+    Mat input = Mat(keypoints2_pts).reshape(1);
+    flann::Index kdtree(input, indexParams);
+
+    std::vector<float> query;
+    std::vector<int> indices;
+    std::vector<float> dists;
+    query.resize(2);
+    for (size_t i = 0; i < keypoints1_pts.size(); i++) {
+        query[0] = keypoints1_pts[i].x;
+        query[1] = keypoints1_pts[i].y;
+
+        kdtree.knnSearch(query, indices, dists, K);
+        neighbors[i] = indices;
+    }
+}
+#endif
 
 static void GraCostMatch(int* neighborX, int* neighborY, float lambda, int numNeigh,
                          int numNeighCands, int* Prob, int* p)

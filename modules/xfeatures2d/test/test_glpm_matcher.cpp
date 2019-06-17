@@ -4,9 +4,32 @@
 
 #include "test_precomp.hpp"
 
-#define DEBUG_DISPLAY 1
+#define DEBUG_DISPLAY 0
 
 namespace opencv_test { namespace {
+
+static double computeAccuracy(const std::vector<KeyPoint>& keypointsCur, const std::vector<KeyPoint>& keypointsRef,
+                              const std::vector<DMatch>& matches, const Mat& H1toCur, double distThreshold)
+{
+    int nbCorrectMatches = 0;
+
+    for (size_t i = 0; i < matches.size(); i++)
+    {
+        Point2f ptRef = keypointsRef[matches[i].trainIdx].pt;
+        Point2f ptCur = keypointsCur[matches[i].queryIdx].pt;
+        Mat matRef = (Mat_<double>(3,1) << ptRef.x, ptRef.y, 1);
+        Mat matTrans = H1toCur * matRef;
+        Point2f ptTrans((float) (matTrans.at<double>(0,0)/matTrans.at<double>(2,0)),
+                        (float) (matTrans.at<double>(1,0)/matTrans.at<double>(2,0)));
+
+        if (cv::norm(ptTrans-ptCur) < distThreshold)
+        {
+            nbCorrectMatches++;
+        }
+    }
+
+    return nbCorrectMatches / (double) matches.size();
+}
 
 class CV_GLPMMatcherTest : public cvtest::BaseTest
 {
@@ -73,38 +96,39 @@ void CV_GLPMMatcherTest::run(int)
         Mat H1toCur;
         fs[format("H1%d", num)] >> H1toCur;
 
+        const float LoweRatio = 0.7f;
         TickMeter tm;
         tm.start();
-        matchGLPM(keypointsCur, descriptorsCur, keypointsRef, descriptorsRef, matcher, matchesGLPM);
+        matchGLPM(keypointsCur, descriptorsCur, keypointsRef, descriptorsRef, matcher, matchesGLPM, LoweRatio);
         tm.stop();
         std::cout << "Match " << matchesGLPM.size() << " keypoints from " << keypointsCur.size()
                   << " current keypoints to " << keypointsRef.size() << " reference keypoints in "
                   << tm.getTimeMilli() << " ms" << std::endl;
 
-        int nbCorrectMatches = 0;
-        for (size_t i = 0; i < matchesGLPM.size(); i++)
-        {
-            Point2f ptRef = keypointsRef[matchesGLPM[i].trainIdx].pt;
-            Point2f ptCur = keypointsCur[matchesGLPM[i].queryIdx].pt;
-            Mat matRef = (Mat_<double>(3,1) << ptRef.x, ptRef.y, 1);
-            Mat matTrans = H1toCur * matRef;
-            Point2f ptTrans((float) (matTrans.at<double>(0,0)/matTrans.at<double>(2,0)),
-                            (float) (matTrans.at<double>(1,0)/matTrans.at<double>(2,0)));
+        double accuracyGLPM = computeAccuracy(keypointsCur, keypointsRef, matchesGLPM, H1toCur, correctMatchDistThreshold);
+        std::cout << "Matching accuracy for GLPM (error < " << correctMatchDistThreshold << "): " << accuracyGLPM
+                  << " ; total matches: " << matchesGLPM.size() << std::endl;
 
-            if (cv::norm(ptTrans-ptCur) < correctMatchDistThreshold)
+        std::vector<std::vector<DMatch> > knnMatches;
+        matcher->knnMatch(descriptorsCur, descriptorsRef, knnMatches, 2);
+
+        std::vector<DMatch> matchesLowe;
+        for (size_t i = 0; i < knnMatches.size(); i++)
+        {
+            if (knnMatches[i][0].distance / knnMatches[i][1].distance < LoweRatio)
             {
-                nbCorrectMatches++;
+                matchesLowe.push_back(knnMatches[i][0]);
             }
         }
+        double accuracyLowe = computeAccuracy(keypointsCur, keypointsRef, matchesLowe, H1toCur, correctMatchDistThreshold);
+        std::cout << "Matching accuracy for Lowe ratio (error < " << correctMatchDistThreshold << "): " << accuracyLowe
+                  << " ; total matches: " << matchesLowe.size() << std::endl;
 
-        double ratio = nbCorrectMatches / (double) matchesGLPM.size();
-        std::cout << "Correct matching ratio (error < " << correctMatchDistThreshold << "): " << ratio << std::endl;
-
-        if (ratio < epsilon[num-startImg])
+        if (accuracyGLPM < epsilon[num-startImg])
         {
             ts->printf(cvtest::TS::LOG, "Invalid accuracy for image %s, matching ratio is %f, "
                                         "matching ratio threshold is %f, distance threshold is %f.\n",
-                       imgPath.substr(imgPath.size()-8).c_str(), ratio,
+                       imgPath.substr(imgPath.size()-8).c_str(), accuracyGLPM,
                        epsilon[num-startImg], correctMatchDistThreshold);
             ts->set_failed_test_info(cvtest::TS::FAIL_BAD_ACCURACY);
         }
@@ -113,8 +137,13 @@ void CV_GLPMMatcherTest::run(int)
         Mat imgMatchingGLPM;
         drawMatches(imgCur, keypointsCur, imgRef, keypointsRef, matchesGLPM, imgMatchingGLPM, Scalar::all(-1),
                     Scalar::all(-1), vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
-
         imshow("GLPM Matching", imgMatchingGLPM);
+
+        Mat imgMatchingLowe;
+        drawMatches(imgCur, keypointsCur, imgRef, keypointsRef, matchesLowe, imgMatchingLowe, Scalar::all(-1),
+                    Scalar::all(-1), vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+        imshow("Lowe Matching", imgMatchingLowe);
+
         waitKey();
 #endif
     }
@@ -123,7 +152,7 @@ void CV_GLPMMatcherTest::run(int)
 TEST(XFeatures2d_GLPMMatcher, regression_graf)
 {
     std::vector<double> epsilon;
-    epsilon.push_back(0.94);
+    epsilon.push_back(0.93);
     epsilon.push_back(0.79);
     epsilon.push_back(0.73);
     CV_GLPMMatcherTest test("graf", 2, 3, epsilon);
