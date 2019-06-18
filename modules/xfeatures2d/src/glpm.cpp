@@ -36,120 +36,15 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "precomp.hpp"
 #include <map>
-//TODO: debug
-#include <iostream>
-#define KD_TREE 1
 
 namespace cv
 {
 namespace xfeatures2d
 {
-struct nnInfo {
-    float dist;
-    int idx;
-
-    nnInfo(float d, int i) : dist(d), idx(i) { }
-
-    bool operator<(const nnInfo& n) const
-    {
-        return dist < n.dist;
-    }
-};
-
-static void nearestNeighbor(const std::vector<KeyPoint>& keypoints, int K, std::vector<std::vector<int> >& neighbors)
-{
-#if !KD_TREE
-    Mat distance(static_cast<int>(keypoints.size()), static_cast<int>(keypoints.size()), CV_32FC1);
-
-    neighbors.resize(keypoints.size());
-    for (int i = 0; i < static_cast<int>(keypoints.size()); i++)
-    {
-        const KeyPoint& kp1 = keypoints[i];
-
-        std::vector<nnInfo> vec_nnInfo;
-        for (int j = 0; j < i; j++)
-        {
-            vec_nnInfo.push_back(nnInfo(distance.at<float>(j,i), j));
-        }
-
-        vec_nnInfo.push_back(nnInfo(0, i));
-
-        for (int j = i+1; j < static_cast<int>(keypoints.size()); j++)
-        {
-            const KeyPoint& kp2 = keypoints[j];
-            float dist = sqrt( (kp1.pt.x-kp2.pt.x)*(kp1.pt.x-kp2.pt.x) + (kp1.pt.y-kp2.pt.y)*(kp1.pt.y-kp2.pt.y) );
-            distance.at<float>(i,j) = dist;
-
-            vec_nnInfo.push_back(nnInfo(dist, j));
-        }
-
-        std::sort(vec_nnInfo.begin(), vec_nnInfo.end());
-        std::vector<int> neigh;
-        for (int j = 0; j < K; j++)
-        {
-            neigh.push_back(vec_nnInfo[j].idx);
-        }
-        neighbors[i] = neigh;
-    }
-#else
-    neighbors.resize(keypoints.size());
-
-    std::vector<Point2f> keypoints_pts;
-    KeyPoint::convert(keypoints, keypoints_pts);
-
-    flann::KDTreeIndexParams indexParams;
-    Mat input = Mat(keypoints_pts).reshape(1);
-    flann::Index kdtree(input, indexParams);
-
-    std::vector<float> query;
-    std::vector<int> indices;
-    std::vector<float> dists;
-    query.resize(2);
-    for (size_t i = 0; i < keypoints_pts.size(); i++) {
-        query[0] = keypoints_pts[i].x;
-        query[1] = keypoints_pts[i].y;
-
-        kdtree.knnSearch(query, indices, dists, K);
-        neighbors[i] = indices;
-    }
-#endif
-}
-
-#if !KD_TREE
 static void nearestNeighbor(const std::vector<KeyPoint>& keypoints1, const std::vector<KeyPoint>& keypoints2,
                             int K, std::vector<std::vector<int> >& neighbors)
 {
-    Mat distance(static_cast<int>(keypoints1.size()), static_cast<int>(keypoints2.size()), CV_32FC1);
-
-    neighbors.resize(keypoints1.size());
-    for (int i = 0; i < static_cast<int>(keypoints1.size()); i++)
-    {
-        const KeyPoint& kp1 = keypoints1[i];
-
-        std::vector<nnInfo> vec_nnInfo;
-        for (int j = 0; j < static_cast<int>(keypoints2.size()); j++)
-        {
-            const KeyPoint& kp2 = keypoints2[j];
-            float dist = sqrt( (kp1.pt.x-kp2.pt.x)*(kp1.pt.x-kp2.pt.x) + (kp1.pt.y-kp2.pt.y)*(kp1.pt.y-kp2.pt.y) );
-            distance.at<float>(i,j) = dist;
-
-            vec_nnInfo.push_back(nnInfo(dist, j));
-        }
-
-        std::sort(vec_nnInfo.begin(), vec_nnInfo.end());
-        std::vector<int> neigh;
-        for (int j = 0; j < K; j++)
-        {
-            neigh.push_back(vec_nnInfo[j].idx);
-        }
-        neighbors[i] = neigh;
-    }
-}
-#else
-static void nearestNeighbor(const std::vector<KeyPoint>& keypoints1, const std::vector<KeyPoint>& keypoints2,
-                            int K, std::vector<std::vector<int> >& neighbors)
-{
-    neighbors.resize(keypoints1.size());
+    neighbors.resize(keypoints2.size());
 
     std::vector<Point2f> keypoints1_pts;
     KeyPoint::convert(keypoints1, keypoints1_pts);
@@ -158,22 +53,22 @@ static void nearestNeighbor(const std::vector<KeyPoint>& keypoints1, const std::
     KeyPoint::convert(keypoints2, keypoints2_pts);
 
     flann::KDTreeIndexParams indexParams;
-    Mat input = Mat(keypoints2_pts).reshape(1);
+    Mat input = Mat(keypoints1_pts).reshape(1);
     flann::Index kdtree(input, indexParams);
 
     std::vector<float> query;
     std::vector<int> indices;
     std::vector<float> dists;
     query.resize(2);
-    for (size_t i = 0; i < keypoints1_pts.size(); i++) {
-        query[0] = keypoints1_pts[i].x;
-        query[1] = keypoints1_pts[i].y;
+    for (size_t i = 0; i < keypoints2_pts.size(); i++)
+    {
+        query[0] = keypoints2_pts[i].x;
+        query[1] = keypoints2_pts[i].y;
 
         kdtree.knnSearch(query, indices, dists, K);
         neighbors[i] = indices;
     }
 }
-#endif
 
 static void GraCostMatch(int* neighborX, int* neighborY, float lambda, int numNeigh,
                          int numNeighCands, int* Prob, int* p)
@@ -317,8 +212,8 @@ void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
     }
 
     std::vector<std::vector<int> > nn1, nn2;
-    nearestNeighbor(keypoints1_putative, numNeighbors1+1, nn1);
-    nearestNeighbor(keypoints2_putative, numNeighbors1+1, nn2);
+    nearestNeighbor(keypoints1_putative, keypoints1_putative, numNeighbors1+1, nn1);
+    nearestNeighbor(keypoints2_putative, keypoints1_putative, numNeighbors1+1, nn2);
 
     std::vector<int> p1(nn1.size());
     std::fill(p1.begin(), p1.end(), 1);
@@ -340,8 +235,8 @@ void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
     }
 
     std::vector<std::vector<int> > nn1_, nn2_;
-    nearestNeighbor(keypoints1_putative_, numNeighbors2+1, nn1_);
-    nearestNeighbor(keypoints2_putative_, numNeighbors2+1, nn2_);
+    nearestNeighbor(keypoints1_putative_, keypoints2_putative, numNeighbors2+1, nn1_);
+    nearestNeighbor(keypoints2_putative_, keypoints2_putative, numNeighbors2+1, nn2_);
 
     std::vector<int> p2 = Prob;
     GraCostMatch(nn1_, nn2_, lambda2, numNeighbors2, static_cast<int>(nn1_.size()), Prob.data(), p2.data());
@@ -398,8 +293,8 @@ void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
     }
 
     std::vector<std::vector<int> > nn12, nn22;
-    nearestNeighbor(keypoints1_putative2, keypoints1_putative2_p3, numNeighbors1+1, nn12);
-    nearestNeighbor(keypoints2_putative2, keypoints2_putative2_p3, numNeighbors1+1, nn22);
+    nearestNeighbor(keypoints1_putative2_p3, keypoints1_putative2, numNeighbors1+1, nn12);
+    nearestNeighbor(keypoints2_putative2_p3, keypoints2_putative2, numNeighbors1+1, nn22);
 
     std::vector<int> Prob2(p3.size());
     GraCostMatch(nn12, nn22, lambda1, numNeighbors1, static_cast<int>(nn12.size()), Prob2.data(), p3.data());
@@ -424,8 +319,8 @@ void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
     }
 
     std::vector<std::vector<int> > nn12_, nn22_;
-    nearestNeighbor(keypoints1_putative2, keypoints1_putative2_Prob2, numNeighbors1+1, nn12_);
-    nearestNeighbor(keypoints2_putative2, keypoints2_putative2_Prob2, numNeighbors1+1, nn22_);
+    nearestNeighbor(keypoints1_putative2_Prob2, keypoints1_putative2, numNeighbors1+1, nn12_);
+    nearestNeighbor(keypoints2_putative2_Prob2, keypoints2_putative2, numNeighbors1+1, nn22_);
 
     std::vector<int> Prob3(Prob2.size());
     GraCostMatch(nn12_, nn22_, lambda1, numNeighbors1, static_cast<int>(nn12.size()), Prob3.data(), Prob2.data());

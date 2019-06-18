@@ -970,7 +970,7 @@ CV_EXPORTS void FASTForPointSet( InputArray image, CV_IN_OUT std::vector<KeyPoin
 //! @addtogroup xfeatures2d_match
 //! @{
 
-/** @brief GMS  (Grid-based Motion Statistics) feature matching strategy by @cite Bian2017gms .
+/** @brief GMS (Grid-based Motion Statistics) features matching strategy by @cite Bian2017gms .
     @param size1 Input size of image1.
     @param size2 Input size of image2.
     @param keypoints1 Input keypoints of image1.
@@ -989,7 +989,15 @@ CV_EXPORTS_W void matchGMS(const Size& size1, const Size& size2, const std::vect
                            const std::vector<DMatch>& matches1to2, CV_OUT std::vector<DMatch>& matchesGMS, const bool withRotation = false,
                            const bool withScale = false, const double thresholdFactor = 6.0);
 
-//TODO: doc
+/** @brief GLPM (Guided Locality Preserving Matching) features matching strategy by @cite Ma2018VisualHV .
+    @param keypoints1 Query keypoints.
+    @param descriptors1 Query descriptors.
+    @param keypoints2 Train keypoints.
+    @param descriptors2 Train descriptors.
+    @param matcher Descriptor matcher used to filter matches according to the Lowe ratio test.
+    @param matches1to2GLPM Matches returned by the GLPM matching strategy.
+    @param LoweRatio Lowe ratio test threshold.
+ */
 CV_EXPORTS_W void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
                             const std::vector<KeyPoint>& keypoints2, const Mat& descriptors2,
                             const Ptr<DescriptorMatcher>& matcher,
