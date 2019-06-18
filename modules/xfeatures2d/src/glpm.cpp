@@ -56,10 +56,9 @@ static void nearestNeighbor(const std::vector<KeyPoint>& keypoints1, const std::
     Mat input = Mat(keypoints1_pts).reshape(1);
     flann::Index kdtree(input, indexParams);
 
-    std::vector<float> query;
+    std::vector<float> query(2);
     std::vector<int> indices;
     std::vector<float> dists;
-    query.resize(2);
     for (size_t i = 0; i < keypoints2_pts.size(); i++)
     {
         query[0] = keypoints2_pts[i].x;
@@ -151,6 +150,7 @@ static void find(const std::vector<KeyPoint>& ikpts, std::vector<KeyPoint>& okpt
                  const std::vector<int>& Prob)
 {
     okpts.clear();
+    okpts.reserve(ikpts.size());
     for (size_t i = 0; i < Prob.size(); i++)
     {
         if (Prob[i] == 1)
@@ -213,7 +213,7 @@ void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
 
     std::vector<std::vector<int> > nn1, nn2;
     nearestNeighbor(keypoints1_putative, keypoints1_putative, numNeighbors1+1, nn1);
-    nearestNeighbor(keypoints2_putative, keypoints1_putative, numNeighbors1+1, nn2);
+    nearestNeighbor(keypoints2_putative, keypoints2_putative, numNeighbors1+1, nn2);
 
     std::vector<int> p1(nn1.size());
     std::fill(p1.begin(), p1.end(), 1);
@@ -235,7 +235,7 @@ void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
     }
 
     std::vector<std::vector<int> > nn1_, nn2_;
-    nearestNeighbor(keypoints1_putative_, keypoints2_putative, numNeighbors2+1, nn1_);
+    nearestNeighbor(keypoints1_putative_, keypoints1_putative, numNeighbors2+1, nn1_);
     nearestNeighbor(keypoints2_putative_, keypoints2_putative, numNeighbors2+1, nn2_);
 
     std::vector<int> p2 = Prob;
@@ -246,6 +246,7 @@ void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
 
     std::vector<KeyPoint> keypoints1_putative2, keypoints2_putative2;
     std::map<int, int> mapKpts1, mapKpts2;
+    std::map<int, float> mapDistance;
     for (size_t i = 0; i < nnMatches.size(); i++)
     {
         const DMatch& m = nnMatches[i];
@@ -254,6 +255,8 @@ void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
 
         keypoints2_putative2.push_back(keypoints2[m.trainIdx]);
         mapKpts2[static_cast<int>(i)] = m.trainIdx;
+
+        mapDistance[static_cast<int>(i)] = m.distance;
     }
 
     std::vector<int> p3(keypoints1_putative2.size());
@@ -331,8 +334,8 @@ void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
         if (Prob3[i] == 1)
         {
             indices_Prob3.push_back(i);
-            matches1to2GLPM.push_back(DMatch(mapKpts1[static_cast<int>(i)],
-                                      mapKpts2[static_cast<int>(i)], 0));
+            matches1to2GLPM.push_back(DMatch(mapKpts1[static_cast<int>(i)], mapKpts2[static_cast<int>(i)],
+                                             mapDistance[static_cast<int>(i)]));
         }
     }
 }

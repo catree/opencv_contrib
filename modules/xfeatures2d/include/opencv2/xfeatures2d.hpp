@@ -994,7 +994,7 @@ CV_EXPORTS_W void matchGMS(const Size& size1, const Size& size2, const std::vect
     @param descriptors1 Query descriptors.
     @param keypoints2 Train keypoints.
     @param descriptors2 Train descriptors.
-    @param matcher Descriptor matcher used to filter matches according to the Lowe ratio test.
+    @param matcher Descriptor matcher used to filter matches with the Lowe ratio test and for nearest-neighbor matching.
     @param matches1to2GLPM Matches returned by the GLPM matching strategy.
     @param LoweRatio Lowe ratio test threshold.
  */

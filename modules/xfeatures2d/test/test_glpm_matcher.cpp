@@ -152,9 +152,9 @@ void CV_GLPMMatcherTest::run(int)
 TEST(XFeatures2d_GLPMMatcher, regression_graf)
 {
     std::vector<double> epsilon;
-    epsilon.push_back(0.94);
-    epsilon.push_back(0.80);
-    epsilon.push_back(0.74);
+    epsilon.push_back(0.93);
+    epsilon.push_back(0.79);
+    epsilon.push_back(0.745);
     CV_GLPMMatcherTest test("graf", 2, 3, epsilon);
     test.safe_run();
 }
@@ -163,9 +163,9 @@ TEST(XFeatures2d_GLPMMatcher, regression_wall)
 {
     std::vector<double> epsilon;
     epsilon.push_back(0.97);
-    epsilon.push_back(0.96);
+    epsilon.push_back(0.95);
     epsilon.push_back(0.92);
-    epsilon.push_back(0.93);
+    epsilon.push_back(0.90);
     CV_GLPMMatcherTest test("wall", 2, 4, epsilon);
     test.safe_run();
 }
