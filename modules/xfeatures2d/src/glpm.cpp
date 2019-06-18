@@ -70,7 +70,7 @@ static void nearestNeighbor(const std::vector<KeyPoint>& keypoints1, const std::
 }
 
 static void GraCostMatch(int* neighborX, int* neighborY, float lambda, int numNeigh,
-                         int numNeighCands, int* Prob, int* p)
+                         int numNeighCands, int* p, int* Prob)
 {
     if (numNeighCands > numNeigh+1)
     {
@@ -117,7 +117,7 @@ static void GraCostMatch(int* neighborX, int* neighborY, float lambda, int numNe
 }
 
 static void GraCostMatch(const std::vector<std::vector<int> >& neighborX, const std::vector<std::vector<int> >& neighborY,
-                         float lambda, int numNeigh, int numPoint, int* Prob, int* p)
+                         float lambda, int numNeigh, int numPoint, int* p, int* Prob)
 {
     std::vector<int> new_X(numPoint * (numNeigh+1));
     std::vector<int> new_Y(numPoint * (numNeigh+1));
@@ -138,7 +138,7 @@ static void GraCostMatch(const std::vector<std::vector<int> >& neighborX, const 
         }
     }
 
-    GraCostMatch(new_X.data(), new_Y.data(), lambda, numNeigh, numPoint, Prob, p);
+    GraCostMatch(new_X.data(), new_Y.data(), lambda, numNeigh, numPoint, p, Prob);
 }
 
 static bool equal(float val, float comp)
@@ -194,14 +194,12 @@ void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
         }
     }
 
-    std::vector<KeyPoint> keypoints1_putative, keypoints2_putative;
+    std::vector<KeyPoint> keypoints1_putative(ratioMatches.size()), keypoints2_putative(ratioMatches.size());
+    for (size_t i = 0; i < ratioMatches.size(); i++)
     {
-        for (size_t i = 0; i < ratioMatches.size(); i++)
-        {
-            const DMatch& m = ratioMatches[i];
-            keypoints1_putative.push_back(keypoints1[m.queryIdx]);
-            keypoints2_putative.push_back(keypoints2[m.trainIdx]);
-        }
+        const DMatch& m = ratioMatches[i];
+        keypoints1_putative[i] = keypoints1[m.queryIdx];
+        keypoints2_putative[i] = keypoints2[m.trainIdx];
     }
 
     int numNeighbors1 = 4, numNeighbors2 = 4;
@@ -222,7 +220,7 @@ void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
     int lambda2 = 4;
     std::vector<int> Prob(p1.size());
 
-    GraCostMatch(nn1, nn2, lambda1, numNeighbors1, static_cast<int>(nn1.size()), Prob.data(), p1.data());
+    GraCostMatch(nn1, nn2, lambda1, numNeighbors1, static_cast<int>(nn1.size()), p1.data(), Prob.data());
 
     std::vector<KeyPoint> keypoints1_putative_, keypoints2_putative_;
     find(keypoints1_putative, keypoints1_putative_, Prob);
@@ -239,21 +237,21 @@ void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
     nearestNeighbor(keypoints2_putative_, keypoints2_putative, numNeighbors2+1, nn2_);
 
     std::vector<int> p2 = Prob;
-    GraCostMatch(nn1_, nn2_, lambda2, numNeighbors2, static_cast<int>(nn1_.size()), Prob.data(), p2.data());
+    GraCostMatch(nn1_, nn2_, lambda2, numNeighbors2, static_cast<int>(nn1_.size()), p2.data(), Prob.data());
 
     std::vector<DMatch> nnMatches;
     matcher->match(descriptors1, descriptors2, nnMatches);
 
-    std::vector<KeyPoint> keypoints1_putative2, keypoints2_putative2;
+    std::vector<KeyPoint> keypoints1_putative2(nnMatches.size()), keypoints2_putative2(nnMatches.size());
     std::map<int, int> mapKpts1, mapKpts2;
     std::map<int, float> mapDistance;
     for (size_t i = 0; i < nnMatches.size(); i++)
     {
         const DMatch& m = nnMatches[i];
-        keypoints1_putative2.push_back(keypoints1[m.queryIdx]);
+        keypoints1_putative2[i] = keypoints1[m.queryIdx];
         mapKpts1[static_cast<int>(i)] = m.queryIdx;
 
-        keypoints2_putative2.push_back(keypoints2[m.trainIdx]);
+        keypoints2_putative2[i] = keypoints2[m.trainIdx];
         mapKpts2[static_cast<int>(i)] = m.trainIdx;
 
         mapDistance[static_cast<int>(i)] = m.distance;
@@ -279,11 +277,11 @@ void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
         }
     }
 
-    std::vector<KeyPoint> keypoints1_putative2_p3, keypoints2_putative2_p3;
+    std::vector<KeyPoint> keypoints1_putative2_p3(indices.size()), keypoints2_putative2_p3(indices.size());
     for (size_t i = 0; i < indices.size(); i++)
     {
-        keypoints1_putative2_p3.push_back(keypoints1_putative2[indices[i]]);
-        keypoints2_putative2_p3.push_back(keypoints2_putative2[indices[i]]);
+        keypoints1_putative2_p3[i] = keypoints1_putative2[indices[i]];
+        keypoints2_putative2_p3[i] = keypoints2_putative2[indices[i]];
     }
 
     lambda1 = 6;
@@ -300,7 +298,7 @@ void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
     nearestNeighbor(keypoints2_putative2_p3, keypoints2_putative2, numNeighbors1+1, nn22);
 
     std::vector<int> Prob2(p3.size());
-    GraCostMatch(nn12, nn22, lambda1, numNeighbors1, static_cast<int>(nn12.size()), Prob2.data(), p3.data());
+    GraCostMatch(nn12, nn22, lambda1, numNeighbors1, static_cast<int>(nn12.size()), p3.data(), Prob2.data());
 
     std::vector<KeyPoint> keypoints1_putative2_Prob2, keypoints2_putative2_Prob2;
     for (size_t i = 0; i < Prob2.size(); i++)
@@ -326,14 +324,12 @@ void matchGLPM(const std::vector<KeyPoint>& keypoints1, const Mat& descriptors1,
     nearestNeighbor(keypoints2_putative2_Prob2, keypoints2_putative2, numNeighbors1+1, nn22_);
 
     std::vector<int> Prob3(Prob2.size());
-    GraCostMatch(nn12_, nn22_, lambda1, numNeighbors1, static_cast<int>(nn12.size()), Prob3.data(), Prob2.data());
+    GraCostMatch(nn12_, nn22_, lambda1, numNeighbors1, static_cast<int>(nn12.size()), Prob2.data(), Prob3.data());
 
-    std::vector<size_t> indices_Prob3;
     for (size_t i = 0; i < Prob3.size(); i++)
     {
         if (Prob3[i] == 1)
         {
-            indices_Prob3.push_back(i);
             matches1to2GLPM.push_back(DMatch(mapKpts1[static_cast<int>(i)], mapKpts2[static_cast<int>(i)],
                                              mapDistance[static_cast<int>(i)]));
         }
